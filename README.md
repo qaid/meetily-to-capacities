@@ -8,8 +8,8 @@ Automatically processes meeting transcripts with AI and sends structured notes t
 - **Structured output** with decisions, action items, timeline, etc.
 - **Multiple input formats**: Meetily JSON, audio/video files, plain text
 - **Whisper transcription**: Transcribe audio/video files locally
-- **Auto-watch mode**: Monitors directory for new transcripts
-- **Single file mode**: Process individual files on demand
+- **Context support**: Add participant names, meeting topics to improve AI accuracy
+- **Raycast integration**: GUI with context dialog for easy processing
 
 ## Prerequisites
 
@@ -53,12 +53,16 @@ cp .env.example .env
 
 ## Usage
 
-### Watch Mode (default)
-Monitors the transcript directory for new files:
+### Scan Mode (default)
+Scans both the Meetily recordings folder and import folder for new files to process:
 
 ```bash
 python meetily_capacities_sync.py
 ```
+
+This will:
+1. Check `$TRANSCRIPT_DIR` for Meetily recording folders with completed transcripts
+2. Check `$TRANSCRIPT_DIR/imported/` for audio/video files to transcribe
 
 ### Single File Mode
 Process a specific file:
@@ -69,25 +73,12 @@ python meetily_capacities_sync.py /path/to/meeting.mp4
 python meetily_capacities_sync.py /path/to/meetily-folder/
 ```
 
-### Scan Import Folder
-Process all audio/video files in the import folder:
-
-```bash
-python meetily_capacities_sync.py --scan-imports
-```
-
-Drop files into `$TRANSCRIPT_DIR/imported/` and run this command.
-
 ### Adding Context
 Provide additional context to help the AI (participant names, meeting topic, etc.):
 
 ```bash
-python meetily_capacities_sync.py /path/to/file.mp4 --context "Participants: John (PM), Sarah (Dev). Project: Alpha release planning"
-```
-
-Context can be combined with `--scan-imports`:
-```bash
-python meetily_capacities_sync.py --scan-imports --context "Weekly team standup with engineering team"
+python meetily_capacities_sync.py --context "Participants: John (PM), Sarah (Dev). Project: Alpha release planning"
+python meetily_capacities_sync.py /path/to/file.mp4 --context "Weekly standup with engineering team"
 ```
 
 ### Raycast Integration

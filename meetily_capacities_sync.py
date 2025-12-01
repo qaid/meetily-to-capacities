@@ -11,11 +11,11 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import argparse
+
 import ollama
 import requests
 from dotenv import load_dotenv
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
 
 # Load .env file from script directory
 load_dotenv(Path(__file__).parent / ".env")
@@ -337,49 +337,6 @@ Generate the structured meeting notes now:"""
             return False
 
 
-# ============= FILE WATCHING =============
-
-class TranscriptWatcher(FileSystemEventHandler):
-    """Watches directory for new transcript files"""
-    
-    def __init__(self, processor, processed_files):
-        self.processor = processor
-        self.processed_files = processed_files
-        self.file_extensions = ('.txt', '.md', '.json')
-    
-    def on_created(self, event):
-        if event.is_directory:
-            # Check if it's a Meetily-style folder with transcripts.json
-            folder_path = Path(event.src_path)
-            time.sleep(3)  # Wait for files to be written
-            
-            transcripts_file = folder_path / "transcripts.json"
-            metadata_file = folder_path / "metadata.json"
-            
-            if transcripts_file.exists() and metadata_file.exists():
-                # Check if meeting is completed
-                try:
-                    with open(metadata_file, 'r') as f:
-                        metadata = json.load(f)
-                    if metadata.get('status') != 'completed':
-                        return
-                except:
-                    return
-                
-                if event.src_path not in self.processed_files:
-                    if self.processor.process_transcript(event.src_path):
-                        self.processed_files.add(event.src_path)
-            return
-        
-        # Handle regular transcript files
-        if event.src_path.endswith(self.file_extensions):
-            if event.src_path not in self.processed_files:
-                time.sleep(2)  # Wait for file to be fully written
-                
-                if self.processor.process_transcript(event.src_path):
-                    self.processed_files.add(event.src_path)
-
-
 # ============= SYNC STATE =============
 
 def load_sync_state():
@@ -436,37 +393,12 @@ def main():
     processed_files = load_sync_state()
     
     # Parse arguments
-    import argparse
     parser = argparse.ArgumentParser(description="Process meeting transcripts")
     parser.add_argument("file", nargs="?", help="Single file or folder to process")
-    parser.add_argument("--scan-imports", action="store_true", help="Scan import folder for audio/video files")
     parser.add_argument("--context", type=str, default="", help="Additional context for AI (e.g., participant names)")
     args = parser.parse_args()
     
     context = args.context
-    
-    # Scan import directory for unprocessed audio/video files
-    if args.scan_imports:
-        if not IMPORT_DIR.exists():
-            print(f"❌ Import directory not found: {IMPORT_DIR}")
-            sys.exit(1)
-        
-        print(f"🔍 Scanning {IMPORT_DIR} for audio/video files...\n")
-        
-        found = 0
-        for file_path in IMPORT_DIR.iterdir():
-            if file_path.suffix.lower() in AUDIO_VIDEO_EXTENSIONS:
-                if str(file_path) not in processed_files:
-                    found += 1
-                    if processor.process_transcript(file_path, context):
-                        processed_files.add(str(file_path))
-                        save_sync_state(processed_files)
-        
-        if found == 0:
-            print("No new audio/video files found.")
-        else:
-            print(f"\n✨ Processed {found} file(s)!")
-        return
     
     # Single file mode
     if args.file:
@@ -481,49 +413,57 @@ def main():
             sys.exit(1)
         return
     
-    # Watch mode
+    # Default: Scan both directories for unprocessed files
     print("=" * 60)
     print("🚀 Meeting Notes Processor")
     print("=" * 60)
-    print(f"📂 Watching: {TRANSCRIPT_DIR}")
     print(f"🤖 LLM Model: {LLM_MODEL}")
     print(f"📍 Capacities Space: {CAPACITIES_SPACE_ID[:8]}...")
-    print(f"💾 Sync state: {SYNC_STATE_FILE}")
     print(f"📊 Previously processed: {len(processed_files)} files")
-    print("\nPress Ctrl+C to stop")
     print("=" * 60)
     
-    # Set up file watcher for Meetily transcripts
-    observer = Observer()
-    observer.schedule(
-        TranscriptWatcher(processor, processed_files),
-        str(TRANSCRIPT_DIR),
-        recursive=True
-    )
+    total_found = 0
     
-    # Also watch import directory for audio/video files
-    if IMPORT_DIR.exists() and IMPORT_DIR != TRANSCRIPT_DIR:
-        print(f"📂 Import folder: {IMPORT_DIR}")
-        observer.schedule(
-            TranscriptWatcher(processor, processed_files),
-            str(IMPORT_DIR),
-            recursive=False
-        )
+    # Scan Meetily recordings directory for folders with transcripts
+    print(f"\n🔍 Scanning Meetily recordings: {TRANSCRIPT_DIR}")
+    for item in TRANSCRIPT_DIR.iterdir():
+        if item.is_dir():
+            transcripts_file = item / "transcripts.json"
+            metadata_file = item / "metadata.json"
+            
+            if transcripts_file.exists() and metadata_file.exists():
+                # Check if meeting is completed
+                try:
+                    with open(metadata_file, 'r') as f:
+                        metadata = json.load(f)
+                    if metadata.get('status') != 'completed':
+                        continue
+                except:
+                    continue
+                
+                if str(item) not in processed_files:
+                    total_found += 1
+                    if processor.process_transcript(item, context):
+                        processed_files.add(str(item))
+                        save_sync_state(processed_files)
     
-    observer.start()
+    # Scan import directory for audio/video files
+    if IMPORT_DIR.exists():
+        print(f"\n🔍 Scanning import folder: {IMPORT_DIR}")
+        for file_path in IMPORT_DIR.iterdir():
+            if file_path.suffix.lower() in AUDIO_VIDEO_EXTENSIONS:
+                if str(file_path) not in processed_files:
+                    total_found += 1
+                    if processor.process_transcript(file_path, context):
+                        processed_files.add(str(file_path))
+                        save_sync_state(processed_files)
     
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        observer.stop()
-        save_sync_state(processed_files)
-        print("\n\n" + "=" * 60)
-        print("👋 Stopped watching")
-        print(f"📊 Total processed: {len(processed_files)} files")
-        print("=" * 60)
-    
-    observer.join()
+    print("\n" + "=" * 60)
+    if total_found == 0:
+        print("✅ No new files to process")
+    else:
+        print(f"✨ Processed {total_found} file(s)!")
+    print("=" * 60)
 
 
 if __name__ == "__main__":
