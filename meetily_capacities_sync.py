@@ -56,10 +56,11 @@ SYNC_STATE_FILE = Path.home() / ".meeting_notes_sync.json"
 class MeetingNotesProcessor:
     """Processes transcripts with AI and sends structured notes to Capacities"""
     
-    def __init__(self, capacities_token, space_id, llm_model):
+    def __init__(self, capacities_token, space_id, llm_model, whisper_model=None):
         self.capacities_token = capacities_token
         self.space_id = space_id
         self.llm_model = llm_model
+        self.whisper_model = whisper_model or WHISPER_MODEL
         self.api_url = "https://api.capacities.io/save-to-daily-note"
     
     def read_transcript_file(self, file_path):
@@ -107,14 +108,14 @@ class MeetingNotesProcessor:
             print("  ⚠️  ffmpeg not installed. Run: brew install ffmpeg")
             return None
         
-        print(f"  🎤 Transcribing with Whisper ({WHISPER_MODEL} model)...")
+        print(f"  🎤 Transcribing with Whisper ({self.whisper_model} model)...")
         print(f"     Loading model (this may take a moment on first run)...", flush=True)
         
         try:
             import warnings
             warnings.filterwarnings("ignore", category=UserWarning)
             
-            model = whisper.load_model(WHISPER_MODEL)
+            model = whisper.load_model(self.whisper_model)
             print(f"     Model loaded. Transcribing audio...", flush=True)
             result = model.transcribe(str(file_path), fp16=False, verbose=False)
             return result['text']
@@ -474,13 +475,6 @@ def main():
         print()
         sys.exit(1)
     
-    # Initialize processor
-    processor = MeetingNotesProcessor(
-        capacities_token=CAPACITIES_TOKEN,
-        space_id=CAPACITIES_SPACE_ID,
-        llm_model=LLM_MODEL
-    )
-    
     # Load sync state
     processed_files = load_sync_state()
     
@@ -490,10 +484,21 @@ def main():
     parser.add_argument("--context", type=str, default="", help="Additional context for AI (e.g., participant names)")
     parser.add_argument("--type", type=str, choices=["meeting", "summary"], default="meeting",
                         help="Content type: 'meeting' for meeting notes, 'summary' for general video/audio summaries")
+    parser.add_argument("--model", type=str, choices=["tiny", "base", "small", "medium", "large"], default=WHISPER_MODEL,
+                        help="Whisper model size for audio transcription (default: base)")
     args = parser.parse_args()
     
     context = args.context
     content_type = args.type
+    whisper_model = args.model
+    
+    # Initialize processor with selected whisper model
+    processor = MeetingNotesProcessor(
+        capacities_token=CAPACITIES_TOKEN,
+        space_id=CAPACITIES_SPACE_ID,
+        llm_model=LLM_MODEL,
+        whisper_model=whisper_model
+    )
     
     # Single file mode
     if args.file:
