@@ -12,6 +12,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var isRunning = true
     let scriptDir: String
     let action: String
+    var meetingContext: String = ""
     
     init(scriptDir: String, action: String) {
         self.scriptDir = scriptDir
@@ -70,8 +71,45 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         
-        // Start the process
-        startProcess()
+        // Show context dialog before processing
+        showContextDialog()
+    }
+    
+    func showContextDialog() {
+        let alert = NSAlert()
+        alert.messageText = "Meeting Context (Optional)"
+        alert.informativeText = "Add any helpful context for the AI, such as:\n• Participant names\n• Meeting topic\n• Project name\n\nLeave blank to skip."
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Start Processing")
+        alert.addButton(withTitle: "Cancel")
+        
+        // Create text input
+        let inputField = NSTextView(frame: NSRect(x: 0, y: 0, width: 350, height: 100))
+        inputField.font = NSFont.systemFont(ofSize: 13)
+        inputField.isEditable = true
+        inputField.isSelectable = true
+        inputField.drawsBackground = true
+        inputField.backgroundColor = NSColor.textBackgroundColor
+        
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 350, height: 100))
+        scrollView.documentView = inputField
+        scrollView.hasVerticalScroller = true
+        scrollView.borderType = .bezelBorder
+        
+        alert.accessoryView = scrollView
+        alert.window.initialFirstResponder = inputField
+        
+        let response = alert.runModal()
+        
+        if response == .alertFirstButtonReturn {
+            meetingContext = inputField.string.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !meetingContext.isEmpty {
+                appendOutput("📝 Context provided: \(meetingContext)\n\n")
+            }
+            startProcess()
+        } else {
+            NSApp.terminate(nil)
+        }
     }
     
     func startProcess() {
@@ -82,11 +120,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let mainScript = "\(scriptDir)/meetily_capacities_sync.py"
         
         process?.executableURL = URL(fileURLWithPath: venvPython)
+        
+        var args = [mainScript]
         if action == "scan" {
-            process?.arguments = [mainScript, "--scan-imports"]
-        } else {
-            process?.arguments = [mainScript]
+            args.append("--scan-imports")
         }
+        if !meetingContext.isEmpty {
+            args.append("--context")
+            args.append(meetingContext)
+        }
+        process?.arguments = args
         process?.currentDirectoryURL = URL(fileURLWithPath: scriptDir)
         process?.standardOutput = pipe
         process?.standardError = pipe
