@@ -26,6 +26,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var formContainer: NSView!
     var recordingLabel: NSTextField!
     var typePopup: NSPopUpButton!
+    var whisperPopup: NSPopUpButton!
     var participantsField: NSTextField!
     var jargonField: NSTextField!
     var processButton: NSButton!
@@ -70,7 +71,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         contentView.addSubview(statusLabel)
         
         // Form container (hidden initially)
-        formContainer = NSView(frame: NSRect(x: 15, y: 360, width: 670, height: 145))
+        formContainer = NSView(frame: NSRect(x: 15, y: 330, width: 670, height: 175))
         formContainer.autoresizingMask = [.width, .minYMargin]
         formContainer.isHidden = true
         contentView.addSubview(formContainer)
@@ -78,25 +79,42 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Recording name
         recordingLabel = NSTextField(labelWithString: "")
         recordingLabel.font = NSFont.systemFont(ofSize: 13, weight: .medium)
-        recordingLabel.frame = NSRect(x: 0, y: 120, width: 670, height: 20)
+        recordingLabel.frame = NSRect(x: 0, y: 150, width: 670, height: 20)
         recordingLabel.lineBreakMode = .byTruncatingMiddle
         formContainer.addSubview(recordingLabel)
         
         // Recording Type row
         let typeLabel = NSTextField(labelWithString: "Type:")
-        typeLabel.frame = NSRect(x: 0, y: 88, width: 100, height: 20)
+        typeLabel.frame = NSRect(x: 0, y: 118, width: 100, height: 20)
         formContainer.addSubview(typeLabel)
         
-        typePopup = NSPopUpButton(frame: NSRect(x: 105, y: 83, width: 280, height: 30))
+        typePopup = NSPopUpButton(frame: NSRect(x: 105, y: 113, width: 280, height: 30))
         typePopup.addItems(withTitles: ["Meeting", "Summary (Documentary/Talk/Essay)"])
         formContainer.addSubview(typePopup)
         
+        // Whisper Model row
+        let whisperLabel = NSTextField(labelWithString: "Whisper Model:")
+        whisperLabel.frame = NSRect(x: 0, y: 85, width: 100, height: 20)
+        formContainer.addSubview(whisperLabel)
+        
+        whisperPopup = NSPopUpButton(frame: NSRect(x: 105, y: 80, width: 180, height: 30))
+        whisperPopup.addItems(withTitles: ["tiny (fastest)", "base (default)", "small (balanced)", "medium (accurate)", "large (best)"])
+        whisperPopup.selectItem(at: 1)  // default to "base"
+        formContainer.addSubview(whisperPopup)
+        
+        // Whisper help text
+        let whisperHelp = NSTextField(labelWithString: "For audio/video files only")
+        whisperHelp.frame = NSRect(x: 290, y: 85, width: 150, height: 20)
+        whisperHelp.font = NSFont.systemFont(ofSize: 11)
+        whisperHelp.textColor = NSColor.secondaryLabelColor
+        formContainer.addSubview(whisperHelp)
+        
         // Participants row
         let participantsLabel = NSTextField(labelWithString: "Participants:")
-        participantsLabel.frame = NSRect(x: 0, y: 55, width: 100, height: 20)
+        participantsLabel.frame = NSRect(x: 0, y: 52, width: 100, height: 20)
         formContainer.addSubview(participantsLabel)
         
-        participantsField = NSTextField(frame: NSRect(x: 105, y: 52, width: 450, height: 24))
+        participantsField = NSTextField(frame: NSRect(x: 105, y: 49, width: 450, height: 24))
         participantsField.placeholderString = "John, Sarah, Mike (comma separated, optional)"
         participantsField.isEditable = true
         participantsField.isSelectable = true
@@ -107,10 +125,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         // Jargon row
         let jargonLabel = NSTextField(labelWithString: "Product/Jargon:")
-        jargonLabel.frame = NSRect(x: 0, y: 22, width: 100, height: 20)
+        jargonLabel.frame = NSRect(x: 0, y: 19, width: 100, height: 20)
         formContainer.addSubview(jargonLabel)
         
-        jargonField = NSTextField(frame: NSRect(x: 105, y: 19, width: 450, height: 24))
+        jargonField = NSTextField(frame: NSRect(x: 105, y: 16, width: 450, height: 24))
         jargonField.placeholderString = "Acme, ProjectX (terms that may be misheard, optional)"
         jargonField.isEditable = true
         jargonField.isSelectable = true
@@ -119,20 +137,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         jargonField.cell?.isScrollable = true
         formContainer.addSubview(jargonField)
         
-        // Buttons
-        processButton = NSButton(title: "Process", target: self, action: #selector(processClicked))
-        processButton.bezelStyle = .rounded
-        processButton.frame = NSRect(x: 455, y: 83, width: 100, height: 30)
-        processButton.keyEquivalent = "\r"
-        formContainer.addSubview(processButton)
-        
+        // Skip button in form area
         skipButton = NSButton(title: "Skip", target: self, action: #selector(skipClicked))
         skipButton.bezelStyle = .rounded
-        skipButton.frame = NSRect(x: 560, y: 83, width: 80, height: 30)
+        skipButton.frame = NSRect(x: 560, y: 113, width: 80, height: 30)
         formContainer.addSubview(skipButton)
         
         // Scroll view for output (below form)
-        let scrollView = NSScrollView(frame: NSRect(x: 15, y: 50, width: 670, height: 300))
+        let scrollView = NSScrollView(frame: NSRect(x: 15, y: 50, width: 670, height: 270))
         scrollView.autoresizingMask = [.width, .height]
         scrollView.hasVerticalScroller = true
         scrollView.borderType = .bezelBorder
@@ -147,7 +159,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         scrollView.documentView = textView
         contentView.addSubview(scrollView)
         
-        // Close button at bottom
+        // Process button at bottom (next to Close)
+        processButton = NSButton(title: "Process", target: self, action: #selector(processClicked))
+        processButton.bezelStyle = .rounded
+        processButton.frame = NSRect(x: 475, y: 10, width: 100, height: 30)
+        processButton.keyEquivalent = "\r"
+        processButton.autoresizingMask = [.minXMargin, .maxYMargin]
+        processButton.isHidden = true
+        contentView.addSubview(processButton)
+        
+        // Close/Cancel button at bottom right
         closeButton = NSButton(title: "Close", target: self, action: #selector(closeClicked))
         closeButton.bezelStyle = .rounded
         closeButton.frame = NSRect(x: 585, y: 10, width: 100, height: 30)
@@ -282,6 +303,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func showFormForCurrentRecording() {
         guard currentRecordingIndex < pendingRecordings.count else {
             formContainer.isHidden = true
+            processButton.isHidden = true
             statusLabel.stringValue = "✅ All recordings processed"
             appendOutput("\n✅ All recordings processed or skipped.\n")
             return
@@ -299,6 +321,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         jargonField.stringValue = ""
         
         formContainer.isHidden = false
+        processButton.isHidden = false
         processButton.isEnabled = true
         skipButton.isEnabled = true
         
@@ -310,15 +333,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         let recording = pendingRecordings[currentRecordingIndex]
         let selectedType = typePopup.indexOfSelectedItem == 0 ? "meeting" : "summary"
+        let whisperModels = ["tiny", "base", "small", "medium", "large"]
+        let selectedWhisper = whisperModels[whisperPopup.indexOfSelectedItem]
         let participants = participantsField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         let jargon = jargonField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         
         // Disable form while processing
-        processButton.isEnabled = false
+        processButton.isHidden = true
         skipButton.isEnabled = false
         formContainer.isHidden = true
         
-        processRecording(recording, type: selectedType, participants: participants, jargon: jargon)
+        processRecording(recording, type: selectedType, whisperModel: selectedWhisper, participants: participants, jargon: jargon)
     }
     
     @objc func skipClicked() {
@@ -335,7 +360,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.terminate(nil)
     }
     
-    func processRecording(_ recording: PendingRecording, type: String, participants: String, jargon: String) {
+    func processRecording(_ recording: PendingRecording, type: String, whisperModel: String, participants: String, jargon: String) {
         isRunning = true
         statusLabel.stringValue = "🔄 Processing: \(recording.name)"
         closeButton.title = "Cancel"
@@ -353,6 +378,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         appendOutput("\n" + String(repeating: "=", count: 60) + "\n")
         appendOutput("🎬 Processing: \(recording.name)\n")
         appendOutput("📋 Type: \(type)\n")
+        appendOutput("🎤 Whisper: \(whisperModel)\n")
         if !context.isEmpty {
             appendOutput("📝 Context: \(context)\n")
         }
@@ -367,7 +393,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         process?.executableURL = URL(fileURLWithPath: venvPython)
         
-        var args = [mainScript, recording.path, "--type", type]
+        var args = [mainScript, recording.path, "--type", type, "--model", whisperModel]
         if !context.isEmpty {
             args.append("--context")
             args.append(context)
