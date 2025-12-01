@@ -155,11 +155,21 @@ class MeetingNotesProcessor:
         except (json.JSONDecodeError, KeyError):
             return None
     
-    def process_with_ai(self, transcript):
+    def process_with_ai(self, transcript, context=""):
         """Generate structured meeting notes using local LLM"""
         
-        prompt = f"""Create a structured meeting summary optimized for a knowledge management system:
+        context_section = ""
+        if context:
+            context_section = f"""
+CONTEXT PROVIDED BY USER:
+{context}
 
+Use this context to help identify participants, understand the meeting topic, and provide more accurate summaries.
+
+"""
+        
+        prompt = f"""Create a structured meeting summary optimized for a knowledge management system:
+{context_section}
 TRANSCRIPT:
 {transcript}
 
@@ -293,7 +303,7 @@ Generate the structured meeting notes now:"""
             print(f"  ❌ Network error: {e}")
             return False
     
-    def process_transcript(self, file_path):
+    def process_transcript(self, file_path, context=""):
         """Complete processing pipeline for a single transcript"""
         file_path = Path(file_path)
         source_name = file_path.name
@@ -312,7 +322,7 @@ Generate the structured meeting notes now:"""
                 return False
             
             # Process with AI
-            notes = self.process_with_ai(transcript)
+            notes = self.process_with_ai(transcript, context)
             
             # Send to Capacities
             print("  📤 Sending to Capacities...")
@@ -425,38 +435,45 @@ def main():
     # Load sync state
     processed_files = load_sync_state()
     
-    # Check for single file mode or --scan-imports flag
-    if len(sys.argv) > 1:
-        arg = sys.argv[1]
+    # Parse arguments
+    import argparse
+    parser = argparse.ArgumentParser(description="Process meeting transcripts")
+    parser.add_argument("file", nargs="?", help="Single file or folder to process")
+    parser.add_argument("--scan-imports", action="store_true", help="Scan import folder for audio/video files")
+    parser.add_argument("--context", type=str, default="", help="Additional context for AI (e.g., participant names)")
+    args = parser.parse_args()
+    
+    context = args.context
+    
+    # Scan import directory for unprocessed audio/video files
+    if args.scan_imports:
+        if not IMPORT_DIR.exists():
+            print(f"❌ Import directory not found: {IMPORT_DIR}")
+            sys.exit(1)
         
-        # Scan import directory for unprocessed audio/video files
-        if arg == "--scan-imports":
-            if not IMPORT_DIR.exists():
-                print(f"❌ Import directory not found: {IMPORT_DIR}")
-                sys.exit(1)
-            
-            print(f"🔍 Scanning {IMPORT_DIR} for audio/video files...\n")
-            
-            found = 0
-            for file_path in IMPORT_DIR.iterdir():
-                if file_path.suffix.lower() in AUDIO_VIDEO_EXTENSIONS:
-                    if str(file_path) not in processed_files:
-                        found += 1
-                        if processor.process_transcript(file_path):
-                            processed_files.add(str(file_path))
-                            save_sync_state(processed_files)
-            
-            if found == 0:
-                print("No new audio/video files found.")
-            else:
-                print(f"\n✨ Processed {found} file(s)!")
-            return
+        print(f"🔍 Scanning {IMPORT_DIR} for audio/video files...\n")
         
-        # Single file mode
-        file_path = arg
+        found = 0
+        for file_path in IMPORT_DIR.iterdir():
+            if file_path.suffix.lower() in AUDIO_VIDEO_EXTENSIONS:
+                if str(file_path) not in processed_files:
+                    found += 1
+                    if processor.process_transcript(file_path, context):
+                        processed_files.add(str(file_path))
+                        save_sync_state(processed_files)
+        
+        if found == 0:
+            print("No new audio/video files found.")
+        else:
+            print(f"\n✨ Processed {found} file(s)!")
+        return
+    
+    # Single file mode
+    if args.file:
+        file_path = args.file
         print(f"📄 Processing single file: {file_path}")
         
-        if processor.process_transcript(file_path):
+        if processor.process_transcript(file_path, context):
             processed_files.add(file_path)
             save_sync_state(processed_files)
             print("\n✨ Done!")

@@ -78,16 +78,29 @@ python meetily_capacities_sync.py --scan-imports
 
 Drop files into `$TRANSCRIPT_DIR/imported/` and run this command.
 
+### Adding Context
+Provide additional context to help the AI (participant names, meeting topic, etc.):
+
+```bash
+python meetily_capacities_sync.py /path/to/file.mp4 --context "Participants: John (PM), Sarah (Dev). Project: Alpha release planning"
+```
+
+Context can be combined with `--scan-imports`:
+```bash
+python meetily_capacities_sync.py --scan-imports --context "Weekly team standup with engineering team"
+```
+
 ### Raycast Integration
 
 1. Open Raycast → Settings → Extensions → Script Commands
 2. Add this repository's folder as a script directory
 3. Search for "Process Meeting Notes" in Raycast
 
-The Raycast command shows a progress window where you can:
-- See real-time status updates
-- Cancel the process at any time
-- Close when complete
+The Raycast command:
+- Shows a **context dialog** first where you can enter participant names, meeting topic, etc.
+- Displays real-time status updates
+- Lets you cancel the process at any time
+- Shows completion status when done
 
 ## Supported Input Formats
 
