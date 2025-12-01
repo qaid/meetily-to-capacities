@@ -120,7 +120,37 @@ The AI generates structured notes with:
 | `CAPACITIES_SPACE_ID` | - | Target Capacities space ID |
 | `TRANSCRIPT_DIR` | - | Meetily recordings directory (check Meetily settings for location) |
 | `LLM_MODEL` | `qwen3:8b` | Ollama model to use |
-| `WHISPER_MODEL` | `base` | Whisper model for audio (tiny/base/small/medium/large) |
+| `WHISPER_MODEL` | `base` | Whisper model for audio (see table below) |
+
+### Whisper Model Sizes
+
+Choose based on your speed vs accuracy needs:
+
+| Model | Size | Speed | Accuracy | Best For |
+|-------|------|-------|----------|----------|
+| `tiny` | 39 MB | ~32x realtime | Basic | Quick tests, clear audio |
+| `base` | 74 MB | ~16x realtime | Good | Default, balanced |
+| `small` | 244 MB | ~6x realtime | Better | Most meetings |
+| `medium` | 769 MB | ~2x realtime | Great | Important recordings |
+| `large` | 1.5 GB | ~1x realtime | Best | Critical accuracy needed |
+
+> **Tip:** A 10-minute recording with `base` takes ~40 seconds. With `medium` it takes ~5 minutes.
+
+### Ollama Model Options
+
+| Model | Size | Speed | Quality |
+|-------|------|-------|---------|
+| `qwen3:4b` | ~2.5 GB | Fast | Good for simple meetings |
+| `qwen3:8b` | ~5 GB | Medium | Default, balanced |
+| `qwen3:14b` | ~9 GB | Slower | Better summaries |
+| `llama3.2:3b` | ~2 GB | Fast | Lightweight alternative |
+| `mistral:7b` | ~4 GB | Medium | Good general purpose |
+
+To use a different model:
+```bash
+ollama pull <model-name>
+# Then set LLM_MODEL=<model-name> in .env
+```
 
 ## Troubleshooting
 
