@@ -155,8 +155,8 @@ class MeetingNotesProcessor:
         except (json.JSONDecodeError, KeyError):
             return None
     
-    def process_with_ai(self, transcript, context=""):
-        """Generate structured meeting notes using local LLM"""
+    def process_with_ai(self, transcript, context="", content_type="meeting"):
+        """Generate structured notes using local LLM"""
         
         context_section = ""
         if context:
@@ -164,11 +164,27 @@ class MeetingNotesProcessor:
 CONTEXT PROVIDED BY USER:
 {context}
 
-Use this context to help identify participants, understand the meeting topic, and provide more accurate summaries.
+Use this context to help understand the content and provide more accurate summaries.
 
 """
         
-        prompt = f"""Create a structured meeting summary optimized for a knowledge management system:
+        if content_type == "meeting":
+            prompt = self._get_meeting_prompt(transcript, context_section)
+        else:
+            prompt = self._get_summary_prompt(transcript, context_section)
+        
+        print(f"  🤖 Processing as {content_type} with {self.llm_model}...")
+        
+        response = ollama.chat(
+            model=self.llm_model,
+            messages=[{'role': 'user', 'content': prompt}]
+        )
+        
+        return response['message']['content']
+    
+    def _get_meeting_prompt(self, transcript, context_section):
+        """Prompt for meeting recordings"""
+        return f"""Create a structured meeting summary optimized for a knowledge management system:
 {context_section}
 TRANSCRIPT:
 {transcript}
@@ -251,14 +267,100 @@ STYLE GUIDELINES:
 
 Generate the structured meeting notes now:"""
 
-        print(f"  🤖 Processing with {self.llm_model}...")
-        
-        response = ollama.chat(
-            model=self.llm_model,
-            messages=[{'role': 'user', 'content': prompt}]
-        )
-        
-        return response['message']['content']
+    def _get_summary_prompt(self, transcript, context_section):
+        """Prompt for documentaries, video essays, TED talks, and educational presentations"""
+        return f"""Create a comprehensive summary of this video content (documentary, video essay, TED talk, or presentation) optimized for a knowledge management system:
+{context_section}
+TRANSCRIPT:
+{transcript}
+
+OUTPUT FORMAT:
+
+# Overview
+- **Title/Topic**: [Infer the main subject]
+- **Format**: [Documentary, video essay, TED talk, lecture, presentation, etc.]
+- **Speaker/Creator**: [Name if identifiable]
+- **Core Question**: [What central question or problem does this content address?]
+
+# The Big Idea
+A single paragraph capturing the central thesis, argument, or message. What is the speaker/creator trying to convince us of or help us understand?
+
+# Key Arguments & Ideas
+Present the main arguments or ideas in the order they build upon each other:
+
+1. **[First major point]**
+   - Supporting evidence or reasoning
+   - Why this matters
+
+2. **[Second major point]**
+   - Supporting evidence or reasoning
+   - Why this matters
+
+(Continue for all major points)
+
+# Narrative Arc
+How does the content unfold? Summarize the structure:
+- **Opening hook**: How does it grab attention?
+- **Problem/Context**: What situation or challenge is presented?
+- **Journey/Exploration**: How does the argument develop?
+- **Resolution/Call to action**: What conclusion or action is proposed?
+
+# Evidence & Examples
+Key evidence, stories, case studies, or examples used to support the arguments:
+- **Example 1**: Description and what it demonstrates
+- **Example 2**: Description and what it demonstrates
+
+# Memorable Moments
+
+## Powerful Quotes
+Direct quotes worth remembering (with context):
+- "[Quote]" — regarding [topic]
+
+## Striking Facts or Statistics
+Surprising or impactful data points mentioned:
+- [Fact/statistic and its significance]
+
+## Stories or Anecdotes
+Compelling narratives used to illustrate points.
+
+# Implications & Takeaways
+
+## Why This Matters
+What are the broader implications of these ideas? Why should we care?
+
+## Challenges to Conventional Thinking
+Does this content challenge common assumptions? How?
+
+## What To Do With This
+Practical applications or changes in perspective this content suggests.
+
+# Connections & Context
+
+## Related Ideas
+How does this connect to other concepts, movements, or thinkers?
+
+## Further Exploration
+Topics, people, or resources to explore for deeper understanding.
+
+## Questions Raised
+Interesting questions this content raises but doesn't fully answer.
+
+---
+
+FORMATTING REQUIREMENTS:
+- Use markdown headers and lists
+- Capture the persuasive structure and emotional arc, not just facts
+- Use **bold** for key terms and central ideas
+- Include direct quotes when they're particularly powerful
+- Write "Not addressed" for sections with no relevant content
+
+STYLE GUIDELINES:
+- Preserve the speaker's voice and passion where possible
+- Focus on the "why" as much as the "what"
+- Capture what makes this content compelling, not just informative
+- Help the reader understand both the content AND why it matters
+
+Generate the structured summary now:"""
     
     def send_to_capacities(self, notes, source_name):
         """Send structured notes to Capacities via API"""
@@ -268,17 +370,7 @@ Generate the structured meeting notes now:"""
             "Content-Type": "application/json"
         }
         
-        formatted_notes = f"""# Meeting Notes
-*Source: {source_name}*
-*Processed: {datetime.now().strftime('%Y-%m-%d %H:%M')}*
-
----
-
-{notes}
-
----
-*Auto-processed from meeting transcript*
-"""
+        formatted_notes = notes
         
         payload = {
             "spaceId": self.space_id,
@@ -303,7 +395,7 @@ Generate the structured meeting notes now:"""
             print(f"  ❌ Network error: {e}")
             return False
     
-    def process_transcript(self, file_path, context=""):
+    def process_transcript(self, file_path, context="", content_type="meeting"):
         """Complete processing pipeline for a single transcript"""
         file_path = Path(file_path)
         source_name = file_path.name
@@ -322,7 +414,7 @@ Generate the structured meeting notes now:"""
                 return False
             
             # Process with AI
-            notes = self.process_with_ai(transcript, context)
+            notes = self.process_with_ai(transcript, context, content_type)
             
             # Send to Capacities
             print("  📤 Sending to Capacities...")
@@ -396,16 +488,20 @@ def main():
     parser = argparse.ArgumentParser(description="Process meeting transcripts")
     parser.add_argument("file", nargs="?", help="Single file or folder to process")
     parser.add_argument("--context", type=str, default="", help="Additional context for AI (e.g., participant names)")
+    parser.add_argument("--type", type=str, choices=["meeting", "summary"], default="meeting",
+                        help="Content type: 'meeting' for meeting notes, 'summary' for general video/audio summaries")
     args = parser.parse_args()
     
     context = args.context
+    content_type = args.type
     
     # Single file mode
     if args.file:
         file_path = args.file
         print(f"📄 Processing single file: {file_path}")
+        print(f"📋 Content type: {content_type}")
         
-        if processor.process_transcript(file_path, context):
+        if processor.process_transcript(file_path, context, content_type):
             processed_files.add(file_path)
             save_sync_state(processed_files)
             print("\n✨ Done!")
@@ -418,6 +514,7 @@ def main():
     print("🚀 Meeting Notes Processor")
     print("=" * 60)
     print(f"🤖 LLM Model: {LLM_MODEL}")
+    print(f"📋 Content type: {content_type}")
     print(f"📍 Capacities Space: {CAPACITIES_SPACE_ID[:8]}...")
     print(f"📊 Previously processed: {len(processed_files)} files")
     print("=" * 60)
@@ -443,7 +540,7 @@ def main():
                 
                 if str(item) not in processed_files:
                     total_found += 1
-                    if processor.process_transcript(item, context):
+                    if processor.process_transcript(item, context, content_type):
                         processed_files.add(str(item))
                         save_sync_state(processed_files)
     
@@ -454,7 +551,7 @@ def main():
             if file_path.suffix.lower() in AUDIO_VIDEO_EXTENSIONS:
                 if str(file_path) not in processed_files:
                     total_found += 1
-                    if processor.process_transcript(file_path, context):
+                    if processor.process_transcript(file_path, context, content_type):
                         processed_files.add(str(file_path))
                         save_sync_state(processed_files)
     
