@@ -38,6 +38,12 @@ IMPORT_DIR = Path(os.path.expanduser(os.environ.get(
     "~/Movies/meetily-recordings/imported"
 )))
 
+# Alter transcript directory (text transcripts)
+ALTER_TRANSCRIPT_DIR = Path(os.path.expanduser(os.environ.get(
+    "ALTER_TRANSCRIPT_DIR",
+    "~/Library/Application Support/Alter/Transcripts"
+)))
+
 # LLM model for processing (must be installed via: ollama pull qwen3:8b)
 LLM_MODEL = os.environ.get("LLM_MODEL", "qwen3:8b")
 
@@ -469,12 +475,6 @@ def main():
         print()
         sys.exit(1)
     
-    if not TRANSCRIPT_DIR.exists():
-        print(f"❌ Transcript directory not found: {TRANSCRIPT_DIR}")
-        print("   Set TRANSCRIPT_DIR environment variable or edit the script")
-        print()
-        sys.exit(1)
-    
     # Load sync state
     processed_files = load_sync_state()
     
@@ -526,27 +526,41 @@ def main():
     
     total_found = 0
     
-    # Scan Meetily recordings directory for folders with transcripts
-    print(f"\n🔍 Scanning Meetily recordings: {TRANSCRIPT_DIR}")
-    for item in TRANSCRIPT_DIR.iterdir():
-        if item.is_dir():
-            transcripts_file = item / "transcripts.json"
-            metadata_file = item / "metadata.json"
-            
-            if transcripts_file.exists() and metadata_file.exists():
-                # Check if meeting is completed
-                try:
-                    with open(metadata_file, 'r') as f:
-                        metadata = json.load(f)
-                    if metadata.get('status') != 'completed':
-                        continue
-                except:
-                    continue
+    # Scan Meetily recordings directory for folders with transcripts (if available)
+    if TRANSCRIPT_DIR.exists():
+        print(f"\n🔍 Scanning Meetily recordings: {TRANSCRIPT_DIR}")
+        for item in TRANSCRIPT_DIR.iterdir():
+            if item.is_dir():
+                transcripts_file = item / "transcripts.json"
+                metadata_file = item / "metadata.json"
                 
-                if str(item) not in processed_files:
+                if transcripts_file.exists() and metadata_file.exists():
+                    # Check if meeting is completed
+                    try:
+                        with open(metadata_file, 'r') as f:
+                            metadata = json.load(f)
+                        if metadata.get('status') != 'completed':
+                            continue
+                    except:
+                        continue
+                    
+                    if str(item) not in processed_files:
+                        total_found += 1
+                        if processor.process_transcript(item, context, content_type):
+                            processed_files.add(str(item))
+                            save_sync_state(processed_files)
+    else:
+        print(f"\nℹ️ Meetily transcript directory not found, skipping: {TRANSCRIPT_DIR}")
+    
+    # Scan Alter transcripts directory for text transcripts
+    if ALTER_TRANSCRIPT_DIR.exists():
+        print(f"\n🔍 Scanning Alter transcripts: {ALTER_TRANSCRIPT_DIR}")
+        for file_path in ALTER_TRANSCRIPT_DIR.rglob("*"):
+            if file_path.is_file() and file_path.suffix.lower() in (".txt", ".md", ".json"):
+                if str(file_path) not in processed_files:
                     total_found += 1
-                    if processor.process_transcript(item, context, content_type):
-                        processed_files.add(str(item))
+                    if processor.process_transcript(file_path, context, content_type):
+                        processed_files.add(str(file_path))
                         save_sync_state(processed_files)
     
     # Scan import directory for audio/video files

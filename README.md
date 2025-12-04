@@ -62,7 +62,8 @@ python meetily_capacities_sync.py
 
 This will:
 1. Check `$TRANSCRIPT_DIR` for Meetily recording folders with completed transcripts
-2. Check `$TRANSCRIPT_DIR/imported/` for audio/video files to transcribe
+2. Check `ALTER_TRANSCRIPT_DIR` (or the default `~/Library/Application Support/Alter/Transcripts` if not set) for Alter text/markdown/JSON transcripts
+3. Check `$TRANSCRIPT_DIR/imported/` for audio/video files to transcribe
 
 ### Single File Mode
 Process a specific file:
@@ -123,6 +124,7 @@ The AI generates structured notes with:
 | `CAPACITIES_TOKEN` | - | Your Capacities API token |
 | `CAPACITIES_SPACE_ID` | - | Target Capacities space ID |
 | `TRANSCRIPT_DIR` | - | Meetily recordings directory (check Meetily settings for location) |
+| `ALTER_TRANSCRIPT_DIR` | `~/Library/Application Support/Alter/Transcripts` | Alter transcripts directory for `.txt`/`.md`/`.json` transcripts (set in `.env`) |
 | `LLM_MODEL` | `qwen3:8b` | Ollama model to use |
 | `WHISPER_MODEL` | `base` | Whisper model for audio (see table below) |
 
