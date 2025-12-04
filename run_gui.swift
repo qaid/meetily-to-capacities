@@ -210,6 +210,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let envFile = URL(fileURLWithPath: scriptDir).appendingPathComponent(".env")
         var transcriptDir = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Movies/meetily-recordings").path
+        var alterDir: String? = nil
         
         if let envContent = try? String(contentsOf: envFile, encoding: .utf8) {
             for line in envContent.components(separatedBy: .newlines) {
@@ -220,9 +221,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         value = FileManager.default.homeDirectoryForCurrentUser.path + String(value.dropFirst())
                     }
                     transcriptDir = value
-                    break
+                } else if line.hasPrefix("ALTER_TRANSCRIPT_DIR=") {
+                    var value = String(line.dropFirst("ALTER_TRANSCRIPT_DIR=".count))
+                    value = value.trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+                    if value.hasPrefix("~") {
+                        value = FileManager.default.homeDirectoryForCurrentUser.path + String(value.dropFirst())
+                    }
+                    alterDir = value
                 }
             }
+        }
+        
+        if alterDir == nil {
+            alterDir = FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent("Library/Application Support/Alter/Transcripts").path
         }
         
         appendOutput("📂 Checking: \(transcriptDir)\n\n")
@@ -278,6 +290,32 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                             name: item.lastPathComponent,
                             date: creationDate
                         ))
+                    }
+                }
+            }
+        }
+        
+        // Also scan Alter transcripts directory for text transcripts
+        if let alterDir = alterDir {
+            let alterURL = URL(fileURLWithPath: alterDir)
+            appendOutput("📂 Checking Alter transcripts: \(alterDir)\n\n")
+            if let alterContents = try? FileManager.default.contentsOfDirectory(
+                at: alterURL,
+                includingPropertiesForKeys: [.isDirectoryKey, .creationDateKey],
+                options: [.skipsHiddenFiles]
+            ) {
+                for item in alterContents {
+                    guard (try? item.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == false else { continue }
+                    let ext = item.pathExtension.lowercased()
+                    if ["txt", "md", "json"].contains(ext) {
+                        if !processedFiles.contains(item.path) {
+                            let creationDate = (try? item.resourceValues(forKeys: [.creationDateKey]))?.creationDate
+                            pendingRecordings.append(PendingRecording(
+                                path: item.path,
+                                name: item.lastPathComponent,
+                                date: creationDate
+                            ))
+                        }
                     }
                 }
             }
