@@ -1,12 +1,14 @@
 # Meeting Notes Processor for Capacities
 
-Automatically processes meeting transcripts with AI and sends structured notes to Capacities.
+A local‑AI–first pipeline that turns your recordings and transcripts into structured notes in Capacities.
+
+It is tailored to work seamlessly with apps like Meetily and Alter, but will process **any locally stored transcript or audio/video file** that you point it at.
 
 ## Features
 
-- **AI-powered summarization** using local Ollama LLM
+- **Local AI summarization** using Ollama (no cloud LLM required)
 - **Structured output** with decisions, action items, timeline, etc.
-- **Multiple input formats**: Meetily JSON, audio/video files, plain text
+- **Multiple input formats**: Meetily JSON folders, Alter transcripts, generic text/markdown/JSON, and audio/video files
 - **Whisper transcription**: Transcribe audio/video files locally
 - **Context support**: Add participant names, meeting topics to improve AI accuracy
 - **Raycast integration**: GUI with context dialog for easy processing
@@ -98,10 +100,10 @@ The Raycast command:
 
 | Source | Format | Notes |
 |--------|--------|-------|
-| Meetily | Folder with `transcripts.json` + `metadata.json` | Auto-detects completed meetings |
-| Audio/Video | `.mp3`, `.mp4`, `.wav`, `.m4a`, `.mov`, `.webm`, `.avi`, `.mkv`, `.flac`, `.ogg` | Transcribed with Whisper |
-| Alter | `.txt` files | Plain transcript text |
-| Generic | `.txt`, `.md`, `.json` | JSON must have `text`, `transcript`, or `segments` field |
+| Meetily | Folder with `transcripts.json` + `metadata.json` | Auto-detects completed meetings from the Meetily recordings folder |
+| Audio/Video | `.mp3`, `.mp4`, `.wav`, `.m4a`, `.mov`, `.webm`, `.avi`, `.mkv`, `.flac`, `.ogg` | Transcribed locally with Whisper |
+| Alter | `.txt`, `.md`, `.json` | Files stored in Alter's transcript directory (`ALTER_TRANSCRIPT_DIR`) |
+| Generic local transcripts | `.txt`, `.md`, `.json` | Any locally stored transcript file, JSON must have `text`, `transcript`, or `segments` field |
 
 > **Meetily Note:** You must enable "Save audio recordings" in Meetily settings for transcripts to be generated. Without this, only `metadata.json` is created.
 
